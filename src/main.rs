@@ -13,82 +13,64 @@ use analog_audio_path::AnalogAudioPath;
 mod digital_audio_path;
 use digital_audio_path::DigitalAudioPath;
 
-pub struct Register {
-    address: u8,
-    value: u16,
+pub struct WM8731<F: FnMut(u8, u16)> {
+    set_register: F,
 }
 
-pub struct WM8731 {}
-
-impl WM8731 {
-    pub fn left_line_in(c: fn(&mut LineIn)) -> Register {
-        let mut li = LineIn::new();
-        c(&mut li);
-
-        Register {
-            address: 0,
-            value: li.data,
+impl<F: FnMut(u8, u16)> WM8731<F> {
+    pub fn with_setter(setter: F) -> Self {
+        Self {
+            set_register: setter,
         }
     }
 
-    pub fn right_line_in(c: fn(&mut LineIn)) -> Register {
+    pub fn left_line_in(&mut self, c: fn(&mut LineIn)) {
         let mut li = LineIn::new();
         c(&mut li);
 
-        Register {
-            address: 1,
-            value: li.data,
-        }
+        (self.set_register)(0, li.data)
     }
 
-    pub fn left_headphone_out(c: fn(&mut HeadphoneOut)) -> Register {
+    pub fn right_line_in(&mut self, c: fn(&mut LineIn)) {
+        let mut li = LineIn::new();
+        c(&mut li);
+
+        (self.set_register)(1, li.data)
+    }
+
+    pub fn left_headphone_out(&mut self, c: fn(&mut HeadphoneOut)) {
         let mut lho = HeadphoneOut::new();
         c(&mut lho);
 
-        Register {
-            address: 2,
-            value: lho.data,
-        }
+        (self.set_register)(2, lho.data)
     }
 
-    pub fn right_headphone_out(c: fn(&mut HeadphoneOut)) -> Register {
+    pub fn right_headphone_out(&mut self, c: fn(&mut HeadphoneOut)) {
         let mut rho = HeadphoneOut::new();
         c(&mut rho);
 
-        Register {
-            address: 3,
-            value: rho.data,
-        }
+        (self.set_register)(3, rho.data)
     }
 
-    pub fn analog_audio_path(c: fn(&mut AnalogAudioPath)) -> Register {
+    pub fn analog_audio_path(&mut self, c: fn(&mut AnalogAudioPath)) {
         let mut aap = AnalogAudioPath::new();
         c(&mut aap);
 
-        Register {
-            address: 4,
-            value: aap.data,
-        }
+        (self.set_register)(4, aap.data)
     }
 
-    pub fn digital_audio_path(c: fn(&mut DigitalAudioPath)) -> Register {
+    pub fn digital_audio_path(&mut self, c: fn(&mut DigitalAudioPath)) {
         let mut dap = DigitalAudioPath::new();
         c(&mut dap);
 
-        Register {
-            address: 5,
-            value: dap.data,
-        }
+        (self.set_register)(5, dap.data)
     }
 
-    pub fn power_down(c: fn(&mut PowerDown)) -> Register {
+    pub fn power_down(&mut self, c: fn(&mut PowerDown)) {
         let mut pd = PowerDown::new();
         c(&mut pd);
 
-        Register {
-            address: 6,
-            value: pd.data,
-        }
+        (self.set_register)(6, pd.data)
     }
 }
 
@@ -98,14 +80,16 @@ mod tests {
 
     #[test]
     fn power_down() {
-        let result = WM8731::power_down(|c| {
+        let mut data = None;
+        let mut codec = WM8731::with_setter(|address, value| data = Some((address, value)));
+
+        codec.power_down(|c| {
             c.line_input();
             c.adc();
             c.dac();
         });
 
-        assert_eq!(result.address, 6);
-        assert_eq!(result.value, 0b0_0000_1101);
+        assert_eq!(data, Some((6, 0b0_0000_1101)));
     }
 }
 
